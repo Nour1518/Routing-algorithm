@@ -1,1193 +1,589 @@
-
 import argparse
-import json
 import math
 import sys
-import time
-from pathlib import Path
 
-
-# ============================================================
-# IMPORT GRAPH
-# ============================================================
-
-# Change this if your Graph class is in another module.
-#
-# Example:
-#     from Graph import Graph
-#
 from BaseClass import Graph
-
-
-# ============================================================
-# ALGORITHMS
-# ============================================================
-
-ALGORITHMS = {
-    "dijkstra",
-    "a_star",
-    "bidijkstra",
-    "bi_a_star",
-    "bfs",
-    "ch",
-}
 
 
 # ============================================================
 # HEURISTICS
 # ============================================================
 
-def geographical_heuristic(a, b):
-    """
-    Euclidean heuristic for geographical graphs.
-
-    Expected node.data:
-
-        {
-            "x": ...,
-            "y": ...
-        }
-    """
-
-    data_a = a.data or {}
-    data_b = b.data or {}
-
-    xa = data_a.get("x")
-    ya = data_a.get("y")
-
-    xb = data_b.get("x")
-    yb = data_b.get("y")
-
-    if (
-        xa is None
-        or ya is None
-        or xb is None
-        or yb is None
-    ):
-        return 0.0
-
-    return math.hypot(
-        xa - xb,
-        ya - yb
-    )
-
-
-def grid_heuristic(a, b):
-    """
-    Manhattan-distance heuristic for a grid.
-
-    Expected node.data:
-
-        {
-            "row": ...,
-            "col": ...
-        }
-    """
-
-    data_a = a.data or {}
-    data_b = b.data or {}
-
-    row_a = data_a.get("row")
-    col_a = data_a.get("col")
-
-    row_b = data_b.get("row")
-    col_b = data_b.get("col")
-
-    if (
-        row_a is None
-        or col_a is None
-        or row_b is None
-        or col_b is None
-    ):
-        return 0.0
-
-    return (
-        abs(row_a - row_b)
-        +
-        abs(col_a - col_b)
-    )
-
-
 def zero_heuristic(a, b):
-    """
-    Zero heuristic.
+    return 0.0
 
-    This makes A* behave like Dijkstra.
-    """
+
+def euclidean_heuristic(a, b):
+    if not a.data or not b.data:
+        return 0.0
+
+    if "x" in a.data and "y" in a.data and "x" in b.data and "y" in b.data:
+        return math.hypot(
+            a.data["x"] - b.data["x"],
+            a.data["y"] - b.data["y"],
+        )
 
     return 0.0
 
 
-def get_heuristic(graph):
-    """
-    Select an appropriate heuristic based on graph type.
-    """
+def manhattan_heuristic(a, b):
+    if not a.data or not b.data:
+        return 0.0
 
-    graph_type = getattr(
-        graph,
-        "graph_type",
-        "generic"
-    )
-
-    if graph_type in {
-        "geographical",
-        "road"
-    }:
-        return geographical_heuristic
-
-    if graph_type == "grid":
-        return grid_heuristic
-
-    return zero_heuristic
-
-
-# ============================================================
-# GRAPH STATISTICS
-# ============================================================
-
-def graph_statistics(graph):
-    """
-    Return basic graph statistics.
-    """
-
-    node_count = len(graph.nodes)
-
-    directed = graph.directed
-
-    adjacency_edges = sum(
-        len(edges)
-        for edges in graph.adjacency.values()
-    )
-
-    if directed:
-        edge_count = adjacency_edges
-    else:
-        edge_count = adjacency_edges // 2
-
-    max_degree = 0
-
-    if graph.nodes:
-
-        max_degree = max(
-            len(graph.adjacency[node_id])
-            for node_id in graph.nodes
+    if "row" in a.data and "col" in a.data:
+        return (
+            abs(a.data["row"] - b.data["row"])
+            + abs(a.data["col"] - b.data["col"])
         )
 
-    average_degree = (
-        adjacency_edges / node_count
-        if node_count
-        else 0
-    )
+    if "x" in a.data and "y" in b.data:
+        return (
+            abs(a.data["x"] - b.data["x"])
+            + abs(a.data["y"] - b.data["y"])
+        )
 
-    return {
-        "nodes": node_count,
-        "edges": edge_count,
-        "directed": directed,
-        "graph_type": getattr(
-            graph,
-            "graph_type",
-            "generic"
-        ),
-        "average_degree": average_degree,
-        "max_degree": max_degree,
-        "ch_ready": getattr(
-            graph,
-            "ch_ready",
-            False
-        ),
-    }
+    return 0.0
+
+
+def octile_heuristic(a, b):
+    if not a.data or not b.data:
+        return 0.0
+
+    # Grid coordinates
+    if "row" in a.data and "col" in a.data:
+        dx = abs(a.data["row"] - b.data["row"])
+        dy = abs(a.data["col"] - b.data["col"])
+
+        return max(dx, dy) + (math.sqrt(2) - 1) * min(dx, dy)
+
+    # Geographical coordinates
+    if "x" in a.data and "y" in a.data:
+        dx = abs(a.data["x"] - b.data["x"])
+        dy = abs(a.data["y"] - b.data["y"])
+
+        return max(dx, dy) + (math.sqrt(2) - 1) * min(dx, dy)
+
+    return 0.0
+
+
+HEURISTICS = {
+    "zero": zero_heuristic,
+    "euclidean": euclidean_heuristic,
+    "manhattan": manhattan_heuristic,
+    "octile": octile_heuristic,
+}
 
 
 # ============================================================
-# PATH STATISTICS
+# CLI
 # ============================================================
 
-def path_statistics(graph, path):
-    """
-    Calculate additional information about a resulting path.
-    """
+class GraphCLI:
 
-    if not path:
-        return {
-            "path_nodes": 0,
-            "path_edges": 0,
-            "path_length": None,
-        }
-
-    path_edges = max(
-        0,
-        len(path) - 1
-    )
-
-    # Cost is calculated independently from the algorithm result.
-    #
-    # This gives us a sanity check.
-
-    path_length = 0.0
-
-    for source, target in zip(
-        path,
-        path[1:]
-    ):
-
-        found = False
-
-        for edge in graph.neighbors(source):
-
-            if edge.target.id == target:
-
-                path_length += edge.weight
-                found = True
-                break
-
-        if not found:
-            # This can happen for CH shortcuts.
-            # The algorithm's returned cost remains authoritative.
-            path_length = None
-            break
-
-    return {
-        "path_nodes": len(path),
-        "path_edges": path_edges,
-        "path_length": path_length,
-    }
-
-
-# ============================================================
-# SOLVE
-# ============================================================
-
-def solve_graph(
-    graph,
-    start,
-    goal,
-    algorithm,
-    collect_trace=False
-):
-    """
-    Execute one routing algorithm.
-
-    Returns:
-
-        path,
-        cost,
-        trace,
-        elapsed_time
-    """
-
-    if start not in graph.nodes:
-        raise ValueError(
-            f"Start node {start} does not exist."
-        )
-
-    if goal not in graph.nodes:
-        raise ValueError(
-            f"Goal node {goal} does not exist."
-        )
-
-    if algorithm not in ALGORITHMS:
-        raise ValueError(
-            f"Unknown algorithm: {algorithm}"
-        )
-
-    heuristic = get_heuristic(graph)
-
-    trace = None
-
-    # --------------------------------------------------------
-    # Select algorithm
-    # --------------------------------------------------------
-
-    start_time = time.perf_counter()
-
-    if algorithm == "dijkstra":
-
-        if collect_trace and hasattr(
-            graph,
-            "dijkstra_visual"
-        ):
-            path, cost, trace = graph.dijkstra_visual(
-                start,
-                goal
-            )
-        else:
-            path, cost = graph.dijkstra(
-                start,
-                goal
-            )
-
-    elif algorithm == "a_star":
-
-        if collect_trace and hasattr(
-            graph,
-            "a_star_visual"
-        ):
-            path, cost, trace = graph.a_star_visual(
-                start,
-                goal,
-                heuristic=heuristic
-            )
-        else:
-            path, cost = graph.a_star(
-                start,
-                goal,
-                heuristic=heuristic
-            )
-
-    elif algorithm == "bidijkstra":
-
-        if collect_trace and hasattr(
-            graph,
-            "bidirectional_dijkstra_visual"
-        ):
-            path, cost, trace = (
-                graph.bidirectional_dijkstra_visual(
-                    start,
-                    goal
-                )
-            )
-        else:
-            path, cost = (
-                graph.bidirectional_dijkstra(
-                    start,
-                    goal
-                )
-            )
-
-    elif algorithm == "bi_a_star":
-
-        if collect_trace and hasattr(
-            graph,
-            "bidirectional_a_star_visual"
-        ):
-            path, cost, trace = (
-                graph.bidirectional_a_star_visual(
-                    start,
-                    goal,
-                    heuristic=heuristic
-                )
-            )
-        else:
-            path, cost = (
-                graph.bidirectional_a_star(
-                    start,
-                    goal,
-                    heuristic=heuristic
-                )
-            )
-
-    elif algorithm == "bfs":
-
-        path, cost = graph.bfs(
-            start,
-            goal
-        )
-
-    elif algorithm == "ch":
-
-        if not graph.ch_ready:
-
-            raise RuntimeError(
-                "CH is not ready. "
-                "Build the contraction hierarchy first."
-            )
-
-        path, cost = graph.contraction_hierarchy(
-            start,
-            goal
-        )
-
-    else:
-
-        raise ValueError(
-            f"Unsupported algorithm: {algorithm}"
-        )
-
-    elapsed = (
-        time.perf_counter()
-        -
-        start_time
-    )
-
-    return (
-        path,
-        cost,
-        trace,
-        elapsed
-    )
-
-
-# ============================================================
-# GENERATE GRAPH
-# ============================================================
-
-
-def generate_graph(args):
-    """
-    Generate a graph according to CLI parameters.
-
-    Supported types:
-        generic
-        random
-        grid
-        geographical
-    """
-
-    graph_type = args.type
-
-    # ========================================================
-    # GENERIC
-    # ========================================================
-
-    if graph_type == "generic":
-
-        graph = Graph(
-            directed=args.directed,
+    def __init__(self, directed=False):
+        self.graph = Graph(
+            directed=directed,
             graph_type="generic"
         )
 
-        # Generic graph starts with nodes only.
-        #
-        # This is useful when the user wants to construct
-        # the graph manually or through another API.
+    # --------------------------------------------------------
+    # Helpers
+    # --------------------------------------------------------
 
-        for node_id in range(args.nodes):
+    def edge_count(self):
+        count = sum(
+            len(edges)
+            for edges in self.graph.adjacency.values()
+        )
 
-            graph.add_node(
-                node_id,
-                {}
+        if not self.graph.directed:
+            count //= 2
+
+        return count
+
+    def print_graph_info(self):
+        print("\n========== GRAPH ==========")
+        print(f"Type       : {self.graph.graph_type}")
+        print(f"Directed   : {self.graph.directed}")
+        print(f"Nodes      : {len(self.graph.nodes)}")
+        print(f"Edges      : {self.edge_count()}")
+        print(f"CH ready   : {self.graph.ch_ready}")
+
+        if self.graph.ch_ready:
+            ch_edges = sum(
+                len(edges)
+                for edges in self.graph.ch_adjacency.values()
             )
 
-        return graph
+            shortcuts = 0
 
-    # ========================================================
-    # RANDOM
-    # ========================================================
+            for edges in self.graph.ch_adjacency.values():
+                for edge in edges:
+                    if edge.middle is not None:
+                        shortcuts += 1
 
-    if graph_type == "random":
+            print(f"CH edges   : {ch_edges}")
+            print(f"CH ranks   : {len(self.graph.ch_rank)}")
+            print(f"Shortcuts  : {shortcuts}")
 
-        graph = Graph(
-            directed=args.directed,
-            graph_type="random"
+        print("============================\n")
+
+    def ask_int(self, prompt, default=None):
+        while True:
+            value = input(prompt).strip()
+
+            if not value and default is not None:
+                return default
+
+            try:
+                return int(value)
+            except ValueError:
+                print("Enter an integer.")
+
+    def ask_float(self, prompt, default=None):
+        while True:
+            value = input(prompt).strip()
+
+            if not value and default is not None:
+                return default
+
+            try:
+                return float(value)
+            except ValueError:
+                print("Enter a number.")
+
+    def ask_yes_no(self, prompt, default=False):
+        suffix = " [Y/n]: " if default else " [y/N]: "
+
+        value = input(prompt + suffix).strip().lower()
+
+        if not value:
+            return default
+
+        return value in ("y", "yes")
+
+    def ask_path(self, prompt):
+        value = input(prompt).strip()
+
+        if not value:
+            print("Path cannot be empty.")
+            return self.ask_path(prompt)
+
+        return value
+
+    def print_path(self, path, cost, max_nodes=30):
+        if path is None:
+            print("\nNo path found.")
+            return
+
+        print("\n========== ROUTE ==========")
+        print(f"Cost       : {cost}")
+        print(f"Nodes      : {len(path)}")
+        print(f"Edges      : {max(0, len(path) - 1)}")
+
+        if len(path) <= max_nodes:
+            print("Path       :", " -> ".join(map(str, path)))
+        else:
+            head = path[:max_nodes // 2]
+            tail = path[-max_nodes // 2:]
+
+            print(
+                "Path       :",
+                " -> ".join(map(str, head)),
+                " -> ... -> ",
+                " -> ".join(map(str, tail)),
+            )
+
+        print("============================\n")
+
+    def choose_heuristic(self):
+        print("\nHeuristic:")
+        print("1. zero")
+        print("2. euclidean")
+        print("3. manhattan")
+        print("4. octile")
+
+        choice = input("Choice [2]: ").strip() or "2"
+
+        names = {
+            "1": "zero",
+            "2": "euclidean",
+            "3": "manhattan",
+            "4": "octile",
+        }
+
+        name = names.get(choice, "euclidean")
+
+        print(f"Using heuristic: {name}")
+
+        return HEURISTICS[name]
+
+    # --------------------------------------------------------
+    # Graph creation
+    # --------------------------------------------------------
+
+    def new_graph(self):
+        directed = self.ask_yes_no(
+            "Directed graph?",
+            self.graph.directed
         )
 
-        graph.generate_random(
-            n=args.nodes,
-            edge_probability=args.probability,
-            min_weight=args.min_weight,
-            max_weight=args.max_weight
+        self.graph = Graph(
+            directed=directed,
+            graph_type="generic"
         )
 
-        return graph
+        print("New empty graph created.")
 
-    # ========================================================
-    # GEOGRAPHICAL
-    # ========================================================
-
-    if graph_type == "geographical":
-
-        graph = Graph(
-            directed=args.directed,
-            graph_type="geographical"
+    def generate_random(self):
+        n = self.ask_int("Number of nodes [100]: ", 100)
+        probability = self.ask_float(
+            "Edge probability [0.05]: ",
+            0.05
+        )
+        min_weight = self.ask_float(
+            "Minimum weight [1]: ",
+            1.0
+        )
+        max_weight = self.ask_float(
+            "Maximum weight [100]: ",
+            100.0
         )
 
-        graph.build_geographical(
-            n=args.nodes,
-            size=args.size,
-            min_dist=args.min_dist,
-            radius=args.radius,
-            max_degree=args.max_degree
+        self.graph.generate_random(
+            n=n,
+            edge_probability=probability,
+            min_weight=min_weight,
+            max_weight=max_weight,
         )
 
-        return graph
+        print("Random graph generated.")
+        self.print_graph_info()
 
-    # ========================================================
-    # GRID
-    # ========================================================
+    def generate_grid(self):
+        rows = self.ask_int("Rows [20]: ", 20)
+        cols = self.ask_int("Columns [20]: ", 20)
+        weight = self.ask_float("Edge weight [1]: ", 1.0)
 
-    if graph_type == "grid":
+        diagonal = self.ask_yes_no(
+            "Allow diagonal movement?",
+            False
+        )
 
-        graph = Graph(
-            directed=args.directed,
+        directed = self.ask_yes_no(
+            "Directed graph?",
+            self.graph.directed
+        )
+
+        self.graph = Graph(
+            directed=directed,
             graph_type="grid"
         )
 
-        graph.build_grid(
-            rows=args.rows,
-            cols=args.cols,
-            weight=args.weight,
-            diagonal=args.diagonal
+        self.graph.build_grid(
+            rows=rows,
+            cols=cols,
+            weight=weight,
+            diagonal=diagonal,
         )
 
-        return graph
+        print("Grid graph generated.")
+        self.print_graph_info()
 
-    # ========================================================
-    # INVALID
-    # ========================================================
-
-    raise ValueError(
-        f"Unsupported graph type: {graph_type}"
-    )
-
-
-# ============================================================
-# BUILD CH
-# ============================================================
-
-def build_ch_if_requested(
-    graph,
-    build_ch
-):
-    """
-    Build Contraction Hierarchy when requested.
-    """
-
-    if not build_ch:
-        return None
-
-    print()
-    print("Building Contraction Hierarchy...")
-
-    start_time = time.perf_counter()
-
-    ch_stats = graph.build_contraction_hierarchy()
-
-    elapsed = (
-        time.perf_counter()
-        -
-        start_time
-    )
-
-    print(
-        f"CH build time : {elapsed:.6f} s"
-    )
-
-    return {
-        "time_seconds": elapsed,
-        "statistics": ch_stats,
-    }
-
-
-# ============================================================
-# PRINT GRAPH
-# ============================================================
-
-def print_graph_info(graph):
-
-    stats = graph_statistics(graph)
-
-    print()
-    print("=" * 60)
-    print("GRAPH")
-    print("=" * 60)
-
-    print(
-        f"Type           : {stats['graph_type']}"
-    )
-
-    print(
-        f"Directed       : {stats['directed']}"
-    )
-
-    print(
-        f"Nodes          : {stats['nodes']:,}"
-    )
-
-    print(
-        f"Edges          : {stats['edges']:,}"
-    )
-
-    print(
-        f"Average degree : {stats['average_degree']:.2f}"
-    )
-
-    print(
-        f"Maximum degree : {stats['max_degree']}"
-    )
-
-    print(
-        f"CH ready       : {stats['ch_ready']}"
-    )
-
-
-# ============================================================
-# PRINT RESULT
-# ============================================================
-
-def print_result(
-    graph,
-    start,
-    goal,
-    algorithm,
-    path,
-    cost,
-    elapsed,
-    trace=None
-):
-
-    print()
-    print("=" * 60)
-    print("ROUTING RESULT")
-    print("=" * 60)
-
-    print(
-        f"Algorithm      : {algorithm}"
-    )
-
-    print(
-        f"Start          : {start}"
-    )
-
-    print(
-        f"Goal           : {goal}"
-    )
-
-    print(
-        f"Time           : {elapsed:.6f} s"
-    )
-
-    if path is None:
-
-        print(
-            "Path           : NOT FOUND"
+    def generate_geographical(self):
+        n = self.ask_int("Number of nodes [100]: ", 100)
+        size = self.ask_float("Area size [1000]: ", 1000.0)
+        min_dist = self.ask_float(
+            "Minimum node distance [10]: ",
+            10.0
+        )
+        radius = self.ask_float(
+            "Local edge radius [150]: ",
+            150.0
+        )
+        max_degree = self.ask_int(
+            "Maximum degree [4]: ",
+            4
         )
 
-        print(
-            "Cost           : inf"
+        directed = self.ask_yes_no(
+            "Directed graph?",
+            False
         )
 
-        return
-
-    print(
-        f"Path nodes     : {len(path):,}"
-    )
-
-    print(
-        f"Cost           : {cost}"
-    )
-
-    # --------------------------------------------------------
-    # Path
-    # --------------------------------------------------------
-
-    print()
-    print("Path:")
-
-    if len(path) <= 100:
-
-        print(
-            " -> ".join(
-                str(node)
-                for node in path
-            )
+        self.graph = Graph(
+            directed=directed,
+            graph_type="geographical"
         )
 
-    else:
-
-        print(
-            " -> ".join(
-                str(node)
-                for node in path[:20]
-            )
+        self.graph.build_geographical(
+            n=n,
+            size=size,
+            min_dist=min_dist,
+            radius=radius,
+            max_degree=max_degree,
         )
 
-        print(
-            f"... ({len(path) - 40:,} nodes omitted) ..."
+        print("Geographical graph generated.")
+        self.print_graph_info()
+
+    # --------------------------------------------------------
+    # File operations
+    # --------------------------------------------------------
+
+    def save_graph(self):
+        filename = self.ask_path(
+            "Filename (.json or .graph): "
         )
 
-        print(
-            " -> ".join(
-                str(node)
-                for node in path[-20:]
-            )
+        try:
+            self.graph.save(filename)
+            print(f"Graph saved to: {filename}")
+        except Exception as exc:
+            print(f"Save error: {exc}")
+
+    def load_graph(self):
+        filename = self.ask_path(
+            "Filename (.json or .graph): "
         )
 
+        try:
+            self.graph.load(filename)
+            print(f"Graph loaded from: {filename}")
+            self.print_graph_info()
+        except Exception as exc:
+            print(f"Load error: {exc}")
+
     # --------------------------------------------------------
-    # Trace
+    # CH
     # --------------------------------------------------------
 
-    if trace:
+    def build_ch(self):
+        if not self.graph.nodes:
+            print("Graph is empty.")
+            return
 
-        print()
-        print("Search statistics:")
+        print("\nBuilding Contraction Hierarchy...")
+        print("This can take time on large graphs.")
 
-        if "expansion_count" in trace:
+        try:
+            result = self.graph.build_contraction_hierarchy()
 
-            print(
-                f"Expansions     : "
-                f"{trace['expansion_count']:,}"
-            )
+            print("\nCH built successfully.")
+            print(f"Nodes       : {result['nodes']}")
+            print(f"Original    : {result['original_edges']}")
+            print(f"CH edges    : {result['ch_edges']}")
+            print(f"Shortcuts   : {result['shortcuts']}")
 
-        if "edge_check_count" in trace:
+        except Exception as exc:
+            print(f"CH error: {exc}")
 
-            print(
-                f"Edge checks    : "
-                f"{trace['edge_check_count']:,}"
-            )
+    # --------------------------------------------------------
+    # Routing
+    # --------------------------------------------------------
 
-        if "meeting_node" in trace:
+    def route(self):
+        if not self.graph.nodes:
+            print("Graph is empty.")
+            return
 
-            print(
-                f"Meeting node   : "
-                f"{trace['meeting_node']}"
-            )
+        start = self.ask_int("Start node: ")
+        goal = self.ask_int("Goal node: ")
+
+        if start not in self.graph.nodes:
+            print(f"Node {start} does not exist.")
+            return
+
+        if goal not in self.graph.nodes:
+            print(f"Node {goal} does not exist.")
+            return
+
+        print("\nAlgorithm:")
+        print("1. Dijkstra")
+        print("2. A*")
+        print("3. Bidirectional Dijkstra")
+        print("4. Bidirectional A*")
+        print("5. BFS")
+        print("6. Contraction Hierarchy")
+
+        choice = input("Choice [1]: ").strip() or "1"
+
+        try:
+            if choice == "1":
+                algorithm = "Dijkstra"
+                path, cost = self.graph.dijkstra(
+                    start,
+                    goal
+                )
+
+            elif choice == "2":
+                algorithm = "A*"
+                heuristic = self.choose_heuristic()
+
+                path, cost = self.graph.a_star(
+                    start,
+                    goal,
+                    heuristic=heuristic
+                )
+
+            elif choice == "3":
+                algorithm = "Bidirectional Dijkstra"
+
+                path, cost = self.graph.bidirectional_dijkstra(
+                    start,
+                    goal
+                )
+
+            elif choice == "4":
+                algorithm = "Bidirectional A*"
+                heuristic = self.choose_heuristic()
+
+                path, cost = self.graph.bidirectional_a_star(
+                    start,
+                    goal,
+                    heuristic=heuristic
+                )
+
+            elif choice == "5":
+                algorithm = "BFS"
+
+                path, cost = self.graph.bfs(
+                    start,
+                    goal
+                )
+
+            elif choice == "6":
+                algorithm = "Contraction Hierarchy"
+
+                if not self.graph.ch_ready:
+                    build = self.ask_yes_no(
+                        "CH is not built. Build it now?",
+                        True
+                    )
+
+                    if not build:
+                        return
+
+                    self.build_ch()
+
+                    if not self.graph.ch_ready:
+                        return
+
+                path, cost = self.graph.contraction_hierarchy(
+                    start,
+                    goal
+                )
+
+            else:
+                print("Invalid algorithm.")
+                return
+
+            print(f"\nAlgorithm  : {algorithm}")
+            self.print_path(path, cost)
+
+        except Exception as exc:
+            print(f"Routing error: {exc}")
+
+    # --------------------------------------------------------
+    # Main menu
+    # --------------------------------------------------------
+
+    def menu(self):
+        while True:
+            print("\n")
+            print("========================================")
+            print("           GRAPH ROUTING CLI")
+            print("========================================")
+            print(f"Graph: {len(self.graph.nodes)} nodes, "
+                  f"{self.edge_count()} edges")
+            print("----------------------------------------")
+            print("1. Graph information")
+            print("2. New empty graph")
+            print("3. Generate random graph")
+            print("4. Generate grid graph")
+            print("5. Generate geographical graph")
+            print("6. Route")
+            print("7. Build Contraction Hierarchy")
+            print("8. Save graph")
+            print("9. Load graph")
+            print("0. Exit")
+            print("----------------------------------------")
+
+            choice = input("Choice: ").strip()
+
+            if choice == "1":
+                self.print_graph_info()
+
+            elif choice == "2":
+                self.new_graph()
+
+            elif choice == "3":
+                self.generate_random()
+
+            elif choice == "4":
+                self.generate_grid()
+
+            elif choice == "5":
+                self.generate_geographical()
+
+            elif choice == "6":
+                self.route()
+
+            elif choice == "7":
+                self.build_ch()
+
+            elif choice == "8":
+                self.save_graph()
+
+            elif choice == "9":
+                self.load_graph()
+
+            elif choice == "0":
+                print("Bye.")
+                break
+
+            else:
+                print("Invalid choice.")
 
 
 # ============================================================
-# SAVE RESULT
-# ============================================================
-
-def save_result(
-    filename,
-    graph,
-    start,
-    goal,
-    algorithm,
-    path,
-    cost,
-    elapsed,
-    trace=None,
-    ch_info=None
-):
-    """
-    Save routing result and statistics as JSON.
-    """
-
-    result = {
-        "format": "graph-routing-result",
-        "version": 1,
-
-        "graph": graph_statistics(graph),
-
-        "query": {
-            "start": start,
-            "goal": goal,
-            "algorithm": algorithm,
-        },
-
-        "result": {
-            "found": path is not None,
-            "cost": (
-                cost
-                if path is not None
-                else None
-            ),
-            "time_seconds": elapsed,
-            "path": path,
-            "path_nodes": (
-                len(path)
-                if path is not None
-                else 0
-            ),
-        },
-
-        "trace": trace,
-
-        "ch": ch_info,
-    }
-
-    # Remove data that JSON cannot represent.
-    #
-    # In normal use trace consists of JSON-compatible objects,
-    # but this makes the CLI safer.
-
-    with open(
-        filename,
-        "w",
-        encoding="utf-8"
-    ) as f:
-
-        json.dump(
-            result,
-            f,
-            indent=2,
-            ensure_ascii=False,
-            default=str
-        )
-
-    print()
-    print(
-        f"Result saved to: {filename}"
-    )
-
-
-# ============================================================
-# SAVE GRAPH
-# ============================================================
-
-def save_graph(graph, filename):
-
-    graph.save(filename)
-
-    print(
-        f"Graph saved to: {filename}"
-    )
-
-
-# ============================================================
-# ARGUMENT PARSER
-# ============================================================
-
-def create_parser():
-    """Create the command-line argument parser."""
-
-    parser = argparse.ArgumentParser(
-        description="Graph generation, loading and routing CLI"
-    )
-
-    subparsers = parser.add_subparsers(
-        dest="command",
-        required=True
-    )
-
-    # ========================================================
-    # GENERATE
-    # ========================================================
-
-    generate = subparsers.add_parser(
-        "generate",
-        help="Generate a new graph"
-    )
-
-    generate.add_argument(
-        "--type",
-        choices=[
-            "generic",
-            "random",
-            "grid",
-            "geographical"
-        ],
-        required=True,
-        help="Graph generation type"
-    )
-
-    generate.add_argument(
-        "--directed",
-        action="store_true",
-        help="Create a directed graph"
-    )
-
-    # --------------------------------------------------------
-    # Generic / Random
-    # --------------------------------------------------------
-
-    generate.add_argument(
-        "--nodes",
-        type=int,
-        default=100,
-        help="Number of nodes"
-    )
-
-    generate.add_argument(
-        "--probability",
-        type=float,
-        default=0.05,
-        help="Random graph edge probability"
-    )
-
-    generate.add_argument(
-        "--min-weight",
-        type=float,
-        default=1.0,
-        help="Minimum random edge weight"
-    )
-
-    generate.add_argument(
-        "--max-weight",
-        type=float,
-        default=100.0,
-        help="Maximum random edge weight"
-    )
-
-    # --------------------------------------------------------
-    # Geographical
-    # --------------------------------------------------------
-
-    generate.add_argument(
-        "--size",
-        type=float,
-        default=1000,
-        help="Geographical area size"
-    )
-
-    generate.add_argument(
-        "--min-dist",
-        type=float,
-        default=10,
-        help="Minimum distance between geographical nodes"
-    )
-
-    generate.add_argument(
-        "--radius",
-        type=float,
-        default=150,
-        help="Maximum local connection radius"
-    )
-
-    generate.add_argument(
-        "--max-degree",
-        type=int,
-        default=4,
-        help="Maximum geographical node degree"
-    )
-
-    # --------------------------------------------------------
-    # Grid
-    # --------------------------------------------------------
-
-    generate.add_argument(
-        "--rows",
-        type=int,
-        default=10,
-        help="Grid rows"
-    )
-
-    generate.add_argument(
-        "--cols",
-        type=int,
-        default=10,
-        help="Grid columns"
-    )
-
-    generate.add_argument(
-        "--weight",
-        type=float,
-        default=1,
-        help="Grid edge weight"
-    )
-
-    generate.add_argument(
-        "--diagonal",
-        action="store_true",
-        help="Allow diagonal grid edges"
-    )
-
-    # --------------------------------------------------------
-    # Generation actions
-    # --------------------------------------------------------
-
-    generate.add_argument(
-        "--build-ch",
-        action="store_true",
-        help="Build Contraction Hierarchy after generation"
-    )
-
-    generate.add_argument(
-        "--save",
-        help="Save generated graph (.graph or .json)"
-    )
-
-    # ========================================================
-    # LOAD + SOLVE
-    # ========================================================
-
-    load = subparsers.add_parser(
-        "load",
-        help="Load an existing graph and solve a query"
-    )
-
-    load.add_argument(
-        "filename",
-        help="Graph file (.graph or .json)"
-    )
-
-    add_routing_arguments(load)
-
-    # ========================================================
-    # SOLVE
-    # ========================================================
-
-    solve = subparsers.add_parser(
-        "solve",
-        help="Load a graph and solve a routing query"
-    )
-
-    solve.add_argument(
-        "filename",
-        help="Graph file (.graph or .json)"
-    )
-
-    add_routing_arguments(solve)
-
-    return parser
-
-
-# ============================================================
-# COMMON ROUTING ARGUMENTS
-# ============================================================
-
-def add_routing_arguments(parser):
-    """Add arguments required for a routing query."""
-
-    parser.add_argument(
-        "--start",
-        type=int,
-        required=True,
-        help="Start node ID"
-    )
-
-    parser.add_argument(
-        "--goal",
-        type=int,
-        required=True,
-        help="Goal node ID"
-    )
-
-    parser.add_argument(
-        "--algorithm",
-        choices=sorted(ALGORITHMS),
-        default="dijkstra",
-        help="Routing algorithm"
-    )
-
-    parser.add_argument(
-        "--build-ch",
-        action="store_true",
-        help="Build Contraction Hierarchy before solving"
-    )
-
-    parser.add_argument(
-        "--trace",
-        action="store_true",
-        help="Collect visualization/search trace when available"
-    )
-
-    parser.add_argument(
-        "--save",
-        help="Save graph after loading"
-    )
-
-    parser.add_argument(
-        "--result",
-        help="Save routing result as JSON"
-    )
-
-
-# ============================================================
-# MAIN
+# ARGUMENTS
 # ============================================================
 
 def main():
-
-    parser = create_parser()
-    args = parser.parse_args()
-
-    try:
-
-        # ====================================================
-        # GENERATE
-        # ====================================================
-
-        if args.command == "generate":
-
-            print(f"Generating {args.type} graph...")
-
-            graph = generate_graph(args)
-
-            print_graph_info(graph)
-
-            # CH is optional during generation.
-            ch_info = build_ch_if_requested(
-                graph,
-                args.build_ch
-            )
-
-            if args.save:
-                save_graph(graph, args.save)
-
-            print()
-            print("Generation completed.")
-
-            return 0
-
-        # ====================================================
-        # LOAD / SOLVE
-        # ====================================================
-
-        if args.command in ("load", "solve"):
-
-            print(f"Loading graph: {args.filename}")
-
-            graph = Graph()
-            graph.load(args.filename)
-
-            print_graph_info(graph)
-
-            # CH may be requested before solving.
-            ch_info = build_ch_if_requested(
-                graph,
-                args.build_ch
-            )
-
-            if args.save:
-                save_graph(graph, args.save)
-
-            print()
-            print(f"Running {args.algorithm}...")
-
-            (
-                path,
-                cost,
-                trace,
-                elapsed
-            ) = solve_graph(
-                graph=graph,
-                start=args.start,
-                goal=args.goal,
-                algorithm=args.algorithm,
-                collect_trace=args.trace
-            )
-
-            print_result(
-                graph=graph,
-                start=args.start,
-                goal=args.goal,
-                algorithm=args.algorithm,
-                path=path,
-                cost=cost,
-                elapsed=elapsed,
-                trace=trace
-            )
-
-            if args.result:
-                save_result(
-                    filename=args.result,
-                    graph=graph,
-                    start=args.start,
-                    goal=args.goal,
-                    algorithm=args.algorithm,
-                    path=path,
-                    cost=cost,
-                    elapsed=elapsed,
-                    trace=trace,
-                    ch_info=ch_info
-                )
-
-            return 0
-
-        raise RuntimeError("Unknown command.")
-
-    except KeyboardInterrupt:
-
-        print("\nInterrupted.")
-        return 130
-
-    except Exception as exc:
-
-        print(
-            f"\nERROR: {exc}",
-            file=sys.stderr
-        )
-        return 1
-
-
-# ============================================================
-# ENTRY POINT
-# ============================================================
-
-if __name__ == "__main__":
-    sys.exit(
-        main()
+    parser = argparse.ArgumentParser(
+        description="CLI for the Graph class in BaseClass.py"
     )
 
-    
+    parser.add_argument(
+        "--directed",
+        action="store_true",
+        help="Start with a directed graph"
+    )
+
+    parser.add_argument(
+        "--load",
+        metavar="FILE",
+        help="Load a .json or .graph file at startup"
+    )
+
+    args = parser.parse_args()
+
+    cli = GraphCLI(
+        directed=args.directed
+    )
+
+    if args.load:
+        try:
+            cli.graph.load(args.load)
+            print(f"Loaded: {args.load}")
+            cli.print_graph_info()
+        except Exception as exc:
+            print(f"Load error: {exc}")
+            sys.exit(1)
+
+    cli.menu()
+
+
+if __name__ == "__main__":
+    main()
