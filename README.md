@@ -1,3 +1,7 @@
+This project was developed in collaboration with ESSE Lab (Sfax) as part of an internship project. The work focuses on the development and experimental evaluation of a modular graph-routing framework, with support for multiple graph structures, routing algorithms, heuristics, and interfaces
+
+
+
 # Multi-Algorithm Graph Routing Engine & GUI
 
 A modular Python framework for graph generation, algorithmic pathfinding, and interactive visualization. The system combines a core graph processing engine, a stateless Flask REST API, a command-line interface (CLI), and a PyQt6 desktop client with a 2D graphics canvas.
