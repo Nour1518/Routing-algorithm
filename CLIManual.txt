@@ -1,0 +1,425 @@
+Manuel d’utilisation — GraphCLI
+1. Présentation
+
+GraphCli.py est une interface en ligne de commande permettant de manipuler la classe Graph définie dans BaseClass.py.
+
+Le programme permet notamment de :
+
+créer différents types de graphes ;
+afficher les informations d’un graphe ;
+générer des graphes aléatoires ;
+générer des grilles ;
+générer des graphes géographiques ;
+sauvegarder et charger des graphes ;
+exécuter différents algorithmes de recherche de chemin ;
+construire et utiliser une Contraction Hierarchy ;
+comparer les résultats des différents algorithmes.
+
+Le programme est conçu pour faciliter les tests et les expérimentations sur les graphes sans modifier directement le code de BaseClass.py.
+
+2. Prérequis
+
+Le fichier GraphCli.py doit être placé dans le même répertoire que :
+
+BaseClass.py
+GraphCli.py
+
+Le programme utilise principalement les bibliothèques Python standards ainsi que la classe Graph.
+
+L'exécution nécessite Python 3.
+
+3. Lancement du programme
+
+Depuis le terminal, se placer dans le dossier du projet :
+
+cd chemin/vers/le/projet
+
+Puis lancer :
+
+python GraphCli.py
+
+Le programme affiche alors le menu principal.
+
+4. Charger directement un graphe
+
+Un graphe sauvegardé peut être chargé au démarrage avec l'option --load.
+
+Exemple :
+
+python GraphCli.py --load mygraph.json
+
+Pour un fichier .graph :
+
+python GraphCli.py --load mygraph.graph
+
+Il est également possible de créer un graphe orienté directement :
+
+python GraphCli.py --directed
+5. Menu principal
+
+Après le lancement, le programme propose différentes opérations.
+
+Le menu permet généralement de sélectionner une opération en entrant son numéro.
+
+Les principales opérations sont :
+
+1. Graph information
+2. Create new graph
+3. Generate random graph
+4. Generate grid graph
+5. Generate geographical graph
+6. Save graph
+7. Load graph
+8. Route
+9. Build Contraction Hierarchy
+0. Exit
+
+Le numéro exact affiché peut dépendre de la version du script.
+
+6. Informations sur le graphe
+
+L'option d'information permet d'afficher les caractéristiques principales du graphe courant.
+
+Elle permet notamment de connaître :
+
+le nombre de sommets ;
+le nombre d'arêtes ;
+si le graphe est orienté ou non ;
+le type de graphe utilisé.
+
+Exemple :
+
+Graph(nodes=100, edges=400, directed=False)
+
+Cette fonction est utile pour vérifier rapidement qu'un graphe a été correctement créé ou chargé.
+
+7. Création d'un graphe vide
+
+L'option de création d'un nouveau graphe permet de repartir d'une structure vide.
+
+Le programme demande notamment si le graphe doit être orienté.
+
+Un graphe orienté possède des arêtes ayant une direction :
+
+A → B
+
+Alors qu'un graphe non orienté permet la circulation dans les deux directions :
+
+A ↔ B
+8. Génération d'un graphe aléatoire
+
+L'option Random Graph permet de générer automatiquement un graphe.
+
+Le programme demande les paramètres nécessaires, notamment :
+
+nombre de sommets ;
+nombre d'arêtes ;
+paramètres liés au type de graphe.
+
+Exemple :
+
+Number of nodes: 1000
+Number of edges: 5000
+
+Le graphe est ensuite créé automatiquement.
+
+Cette fonction est particulièrement utile pour tester les performances des algorithmes sur différentes tailles de graphes.
+
+9. Génération d'une grille
+
+L'option Grid Graph permet de créer un graphe sous forme de grille.
+
+Le programme demande :
+
+Rows:
+Columns:
+Weight:
+Diagonal:
+
+Par exemple :
+
+Rows: 10
+Columns: 10
+Weight: 1
+Diagonal: no
+
+produit une grille de :
+
+10 × 10 = 100 nodes
+
+Chaque sommet représente une position dans la grille.
+
+La grille peut également autoriser les déplacements diagonaux lorsque cette option est activée.
+
+Cette représentation peut être utilisée pour des expérimentations telles que :
+
+résolution de labyrinthes ;
+déplacement d'un robot ;
+comparaison entre Dijkstra et A* ;
+tests des heuristiques.
+10. Génération d'un graphe géographique
+
+L'option Geographical Graph permet de créer un graphe dont les sommets possèdent des coordonnées.
+
+Les coordonnées sont utilisées notamment par les heuristiques basées sur la distance.
+
+Les nœuds peuvent ainsi contenir des informations telles que :
+
+x
+y
+
+Ce type de graphe est particulièrement adapté aux tests de :
+
+Dijkstra ;
+A* ;
+Bidirectional Dijkstra ;
+Bidirectional A*.
+11. Sauvegarder un graphe
+
+L'option Save Graph permet de sauvegarder le graphe courant dans un fichier.
+
+Exemple :
+
+Filename: test.json
+
+Deux formats sont pris en charge par la classe Graph :
+
+.json
+.graph
+
+Exemple :
+
+mygraph.json
+
+Une fois sauvegardé, le graphe peut être chargé ultérieurement sans devoir être généré à nouveau.
+
+12. Charger un graphe
+
+L'option Load Graph permet de charger un graphe précédemment sauvegardé.
+
+Exemple :
+
+Filename: mygraph.json
+
+Après le chargement, le graphe devient le graphe courant et peut être utilisé directement pour les recherches de chemin.
+
+13. Recherche d'un chemin
+
+L'option Route permet d'utiliser les différents algorithmes implémentés dans Graph.
+
+Le programme demande généralement :
+
+Start node:
+Goal node:
+Algorithm:
+
+Par exemple :
+
+Start node: 10
+Goal node: 90
+Algorithm: A*
+
+Le programme exécute ensuite l'algorithme sélectionné et affiche le chemin obtenu ainsi que son coût.
+
+14. Algorithmes disponibles
+14.1 Dijkstra
+
+Dijkstra recherche le plus court chemin entre un sommet de départ et un sommet d'arrivée.
+
+Il ne nécessite pas d'heuristique.
+
+Il peut être utilisé comme référence pour comparer les autres algorithmes.
+
+14.2 A*
+
+A* utilise une fonction heuristique pour orienter la recherche vers la destination.
+
+Dans le CLI, plusieurs heuristiques sont disponibles :
+
+Zero ;
+Euclidean ;
+Manhattan ;
+Octile.
+
+Le choix dépend de la représentation du graphe.
+
+14.3 Bidirectional Dijkstra
+
+La recherche bidirectionnelle utilise deux recherches :
+
+Start → Goal
+Goal  → Start
+
+Les recherches progressent jusqu'à se rencontrer.
+
+Elle permet d'expérimenter une variante de Dijkstra utilisant les structures adjacency et reverse_adjacency.
+
+14.4 Bidirectional A*
+
+Cette méthode combine la recherche bidirectionnelle avec l'utilisation d'heuristiques.
+
+Elle permet de comparer une approche A* classique avec une recherche A* dans les deux directions.
+
+14.5 BFS
+
+BFS, ou Breadth-First Search, explore le graphe par niveaux.
+
+Il est particulièrement adapté aux graphes non pondérés lorsque l'objectif est de trouver le chemin contenant le moins d'arêtes.
+
+Dans la classe Graph, la méthode retourne :
+
+path
+cost
+14.6 Contraction Hierarchy
+
+La Contraction Hierarchy est une méthode destinée à accélérer les recherches de chemins sur de grands graphes.
+
+Elle nécessite d'abord une phase de construction.
+
+Dans le CLI :
+
+Build Contraction Hierarchy
+
+Cette opération prépare notamment :
+
+l'ordre de contraction ;
+les rangs des nœuds ;
+les arêtes originales ;
+les raccourcis (shortcuts).
+
+Une fois la structure construite, l'algorithme CH peut être utilisé pour effectuer une recherche de chemin.
+
+15. Affichage du résultat
+
+Après une recherche, le programme affiche le résultat de l'algorithme.
+
+Le résultat contient notamment :
+
+Path:
+10 -> 15 -> 25 -> 40 -> 90
+
+Cost:
+123.45
+
+Le chemin correspond à la succession des identifiants des sommets parcourus.
+
+Le coût représente le coût total du chemin calculé.
+
+16. Exemple complet
+
+Un exemple d'utilisation classique est :
+
+Étape 1 — lancer le programme
+python GraphCli.py
+Étape 2 — créer une grille
+
+Choisir :
+
+Generate Grid Graph
+
+Puis entrer :
+
+Rows: 20
+Columns: 20
+Weight: 1
+Diagonal: no
+
+Le graphe contient alors :
+
+400 nodes
+Étape 3 — consulter les informations
+
+Choisir :
+
+Graph Information
+
+pour vérifier le nombre de nœuds et d'arêtes.
+
+Étape 4 — rechercher un chemin
+
+Choisir :
+
+Route
+
+Puis, par exemple :
+
+Start: 0
+Goal: 399
+Algorithm: Dijkstra
+
+Le chemin et son coût sont affichés.
+
+Étape 5 — refaire la recherche avec A*
+
+Utiliser les mêmes sommets :
+
+Start: 0
+Goal: 399
+Algorithm: A*
+
+Cela permet de comparer le comportement des deux algorithmes sur le même graphe.
+
+Étape 6 — sauvegarder
+
+Choisir :
+
+Save Graph
+
+et entrer :
+
+grid20x20.json
+
+Le graphe pourra ensuite être réutilisé.
+
+17. Exemple avec un graphe existant
+
+Un graphe peut être chargé directement :
+
+python GraphCli.py --load grid20x20.json
+
+Il est alors possible de lancer directement :
+
+Graph Information
+
+puis :
+
+Route
+
+sans devoir générer le graphe à nouveau.
+
+18. Utilisation pour les expérimentations
+
+Le CLI peut être utilisé pour comparer les algorithmes en conservant les mêmes conditions expérimentales.
+
+Par exemple :
+
+Graphe : 1000 nodes / 5000 edges
+Départ : 10
+Destination : 900
+
+Effectuer successivement :
+
+Dijkstra
+A*
+Bidirectional Dijkstra
+Bidirectional A*
+BFS
+
+Les résultats peuvent ensuite être relevés afin de comparer :
+
+le chemin obtenu ;
+le coût ;
+le comportement des différentes méthodes ;
+le temps d'exécution si celui-ci est mesuré dans le programme.
+
+L'intérêt est de modifier le type ou la taille du graphe tout en conservant la même interface de test.
+
+19. Quitter le programme
+
+Pour terminer l'utilisation du CLI, sélectionner :
+
+0. Exit
+
+ou l'option correspondante affichée dans le menu.
+
+Le programme se ferme alors sans modifier le fichier BaseClass.py
