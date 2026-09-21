@@ -1,88 +1,105 @@
-# GRAPH ROUTING API MANUAL
+# GRAPH ROUTING API
 
-Application:
-GraphApi.py
+Version: 1.0
+Framework: Flask
+Default address: http://localhost:5000
+Default port: 5000
 
-Framework:
-Flask
+## DESCRIPTION
 
-Default server:
-http://127.0.0.1:5000
+The Graph Routing API provides a REST interface for:
 
-============================================================
+* Generating different types of graphs
+* Loading graphs from files
+* Saving graphs to files
+* Listing loaded graphs
+* Getting graph information and structure
+* Running shortest-path algorithms
+* Selecting different A* heuristics
+* Building Contraction Hierarchies
+* Collecting algorithm execution traces
+* Deleting graphs
+* Providing graph and algorithm schemas for GUI integration
 
-1. START THE API
-   ============================================================
+1. STARTING THE SERVER
 
-Install Flask:
+---
 
-```
-pip install flask
-```
-
-Start the server:
-
-```
-python GraphApi.py
-```
-
-The API will listen on:
-
-```
-http://127.0.0.1:5000
-```
-
-If the server is running on another machine on the network,
-use:
+Run the Python API file:
 
 ```
-http://<SERVER-IP>:5000
+python api.py
 ```
 
-The application uses:
+The server starts on:
 
 ```
-host = 0.0.0.0
-port = 5000
+http://localhost:5000
 ```
 
-============================================================
-2. API OVERVIEW
-===============
+Because the application uses:
+
+```
+host="0.0.0.0"
+```
+
+the API can also be accessed from another device on the same network using:
+
+```
+http://<SERVER_IP>:5000
+```
+
+## 2. API OVERVIEW
 
 Available endpoints:
 
-```
 GET     /
-GET     /graphs
+GET     /graph-types
+GET     /algorithms
 
+GET     /graphs
 POST    /graphs/generate
 POST    /graphs/load
 
 GET     /graphs/<graph_id>
+GET     /graphs/<graph_id>/structure
 
 POST    /graphs/<graph_id>/route
 POST    /graphs/<graph_id>/ch
 POST    /graphs/<graph_id>/save
 
 DELETE  /graphs/<graph_id>
-```
 
-The API keeps loaded/generated graphs in memory.
+3. GENERAL RESPONSE FORMAT
 
-Each graph receives a unique graph ID.
+---
+
+Most successful requests return JSON.
 
 Example:
 
-```
-8c2f5d7e4a...
-```
+{
+"success": true
+}
 
-The graph ID is used for subsequent operations.
+Errors generally return:
 
-============================================================
-3. HEALTH CHECK
-===============
+{
+"success": false,
+"error": "Description of the error"
+}
+
+HTTP status codes used include:
+
+200   Successful request
+201   Graph successfully created
+400   Invalid request or parameter
+404   Graph or endpoint not found
+405   HTTP method not allowed
+
+4. HEALTH CHECK
+
+---
 
 Endpoint:
 
@@ -90,89 +107,70 @@ Endpoint:
 GET /
 ```
 
-Example:
+Purpose:
 
-```
-curl http://127.0.0.1:5000/
-```
-
-Response:
-
-```
-{
-    "service": "Graph Routing API",
-    "status": "running",
-    "graphs_loaded": 0,
-    "algorithms": [
-        "a_star",
-        "bfs",
-        "bi_a_star",
-        "bidijkstra",
-        "ch",
-        "dijkstra"
-    ]
-}
-```
-
-============================================================
-4. LIST LOADED GRAPHS
-=====================
-
-Endpoint:
-
-```
-GET /graphs
-```
+Checks whether the API is running and provides a basic summary.
 
 Example:
 
 ```
-curl http://127.0.0.1:5000/graphs
+GET http://localhost:5000/
 ```
 
-Response:
+Example response:
 
-```
 {
-    "count": 1,
-    "graphs": [
-        {
-            "id": "8c2f5d7e4a...",
-            "nodes": 500,
-            "edges": 721,
-            "directed": false,
-            "graph_type": "geographical",
-            "average_degree": 2.88,
-            "max_degree": 4,
-            "ch_ready": false
-        }
-    ]
+"service": "Graph Routing API",
+"status": "running",
+"graphs_loaded": 1,
+"algorithms": [
+"a_star",
+"bfs",
+"bi_a_star",
+"bidijkstra",
+"ch",
+"dijkstra"
+],
+"graph_types": [
+"geographical",
+"generic",
+"grid",
+"random"
+]
 }
-```
 
-============================================================
-5. GENERATE A GRAPH
-===================
+5. GET GRAPH TYPES
+
+---
 
 Endpoint:
 
 ```
-POST /graphs/generate
+GET /graph-types
 ```
 
-Content-Type:
+Purpose:
+
+Returns the available graph types and their parameters.
+
+This endpoint is intended mainly for GUI applications.
+
+Example:
 
 ```
-application/json
+GET http://localhost:5000/graph-types
 ```
 
-The graph type is specified using:
+The response contains:
 
-```
-"type"
-```
+* Graph type name
+* Description
+* Parameter names
+* Parameter types
+* Default values
+* Minimum and maximum values where applicable
 
-Supported types:
+Available graph types:
 
 ```
 generic
@@ -181,425 +179,29 @@ geographical
 grid
 ```
 
----
+The response also indicates whether directed graphs are supported.
 
-## 5.1 GENERIC GRAPH
-
-Request:
-
-```
-{
-    "type": "generic",
-    "nodes": 100,
-    "directed": false
-}
-```
-
-Example:
-
-```
-curl -X POST http://127.0.0.1:5000/graphs/generate \
-  -H "Content-Type: application/json" \
-  -d "{\"type\":\"generic\",\"nodes\":100}"
-```
-
-A generic graph creates the requested nodes.
-
-No edges are automatically created.
+6. GET ALGORITHMS
 
 ---
-
-## 5.2 RANDOM GRAPH
-
-Request:
-
-```
-{
-    "type": "random",
-    "nodes": 100,
-    "probability": 0.05,
-    "min_weight": 1,
-    "max_weight": 100,
-    "directed": false
-}
-```
-
-Parameters:
-
-```
-nodes
-    Number of nodes.
-
-probability
-    Probability of creating an edge.
-
-min_weight
-    Minimum edge weight.
-
-max_weight
-    Maximum edge weight.
-
-directed
-    true or false.
-```
-
-Example:
-
-```
-curl -X POST http://127.0.0.1:5000/graphs/generate \
-  -H "Content-Type: application/json" \
-  -d "{\"type\":\"random\",\"nodes\":100,\"probability\":0.05,\"min_weight\":1,\"max_weight\":100}"
-```
-
----
-
-## 5.3 GEOGRAPHICAL GRAPH
-
-Request:
-
-```
-{
-    "type": "geographical",
-    "nodes": 500,
-    "size": 1000,
-    "min_dist": 10,
-    "radius": 150,
-    "max_degree": 4,
-    "directed": false
-}
-```
-
-Parameters:
-
-```
-nodes
-    Number of geographical nodes.
-
-size
-    Size of the geographical area.
-
-min_dist
-    Minimum distance between generated nodes.
-
-radius
-    Maximum distance for additional local connections.
-
-max_degree
-    Maximum node degree.
-
-directed
-    true or false.
-```
-
-Example:
-
-```
-curl -X POST http://127.0.0.1:5000/graphs/generate \
-  -H "Content-Type: application/json" \
-  -d "{\"type\":\"geographical\",\"nodes\":500,\"size\":1000,\"min_dist\":10,\"radius\":150,\"max_degree\":4}"
-```
-
-The geographical generator:
-
-```
-1. Generates node coordinates.
-2. Enforces minimum distance.
-3. Builds an MST.
-4. Guarantees connectivity.
-5. Adds local geographical edges.
-6. Respects maximum degree.
-```
-
----
-
-## 5.4 GRID GRAPH
-
-Request:
-
-```
-{
-    "type": "grid",
-    "rows": 20,
-    "cols": 20,
-    "weight": 1,
-    "diagonal": false,
-    "directed": false
-}
-```
-
-Parameters:
-
-```
-rows
-    Number of grid rows.
-
-cols
-    Number of grid columns.
-
-weight
-    Edge weight.
-
-diagonal
-    Enable diagonal connections.
-
-directed
-    true or false.
-```
-
-Example:
-
-```
-curl -X POST http://127.0.0.1:5000/graphs/generate \
-  -H "Content-Type: application/json" \
-  -d "{\"type\":\"grid\",\"rows\":20,\"cols\":20,\"weight\":1,\"diagonal\":true}"
-```
-
-============================================================
-6. DIRECTED GRAPH GENERATION
-============================
-
-Use:
-
-```
-"directed": true
-```
-
-Example:
-
-```
-{
-    "type": "random",
-    "nodes": 100,
-    "probability": 0.05,
-    "directed": true
-}
-```
-
-For a directed edge:
-
-```
-A -> B
-```
-
-the reverse:
-
-```
-B -> A
-```
-
-is NOT automatically available.
-
-For an undirected graph:
-
-```
-"directed": false
-```
-
-the graph internally stores both directions.
-
-============================================================
-7. BUILD CH DURING GENERATION
-=============================
-
-A Contraction Hierarchy can be built immediately:
-
-```
-{
-    "type": "geographical",
-    "nodes": 500,
-    "size": 1000,
-    "min_dist": 10,
-    "radius": 150,
-    "max_degree": 4,
-    "build_ch": true
-}
-```
-
-Example:
-
-```
-curl -X POST http://127.0.0.1:5000/graphs/generate \
-  -H "Content-Type: application/json" \
-  -d "{\"type\":\"geographical\",\"nodes\":500,\"build_ch\":true}"
-```
-
-The response includes:
-
-```
-"ch": {
-    "time_seconds": ...,
-    "statistics": ...,
-    "ch_ready": true
-}
-```
-
-============================================================
-8. GENERATION RESPONSE
-======================
-
-Successful generation returns:
-
-```
-{
-    "success": true,
-    "id": "8c2f5d7e4a...",
-    "graph": {
-        "nodes": 500,
-        "edges": 721,
-        "directed": false,
-        "graph_type": "geographical",
-        "average_degree": 2.88,
-        "max_degree": 4,
-        "ch_ready": false
-    },
-    "ch": null
-}
-```
-
-The important field is:
-
-```
-id
-```
-
-Store this ID for subsequent API calls.
-
-============================================================
-9. LOAD AN EXISTING GRAPH
-=========================
 
 Endpoint:
 
 ```
-POST /graphs/load
+GET /algorithms
 ```
 
-Request:
+Purpose:
 
-```
-{
-    "filename": "test.graph"
-}
-```
+Returns all routing algorithms supported by the API.
 
 Example:
 
 ```
-curl -X POST http://127.0.0.1:5000/graphs/load \
-  -H "Content-Type: application/json" \
-  -d "{\"filename\":\"test.graph\"}"
+GET http://localhost:5000/algorithms
 ```
 
-The API loads the graph and assigns a new graph ID.
-
----
-
-## 9.1 LOAD AND BUILD CH
-
-Request:
-
-```
-{
-    "filename": "test.graph",
-    "build_ch": true
-}
-```
-
-Example:
-
-```
-curl -X POST http://127.0.0.1:5000/graphs/load \
-  -H "Content-Type: application/json" \
-  -d "{\"filename\":\"test.graph\",\"build_ch\":true}"
-```
-
-============================================================
-10. GET GRAPH INFORMATION
-=========================
-
-Endpoint:
-
-```
-GET /graphs/<graph_id>
-```
-
-Example:
-
-```
-curl http://127.0.0.1:5000/graphs/8c2f5d7e4a...
-```
-
-Response:
-
-```
-{
-    "id": "8c2f5d7e4a...",
-    "graph": {
-        "nodes": 500,
-        "edges": 721,
-        "directed": false,
-        "graph_type": "geographical",
-        "average_degree": 2.88,
-        "max_degree": 4,
-        "ch_ready": false
-    }
-}
-```
-
-============================================================
-11. ROUTING
-===========
-
-Endpoint:
-
-```
-POST /graphs/<graph_id>/route
-```
-
-Content-Type:
-
-```
-application/json
-```
-
-Required parameters:
-
-```
-start
-goal
-```
-
-Optional:
-
-```
-algorithm
-trace
-```
-
-Example:
-
-```
-{
-    "start": 0,
-    "goal": 400,
-    "algorithm": "a_star",
-    "trace": false
-}
-```
-
-Example:
-
-```
-curl -X POST http://127.0.0.1:5000/graphs/8c2f5d7e4a.../route \
-  -H "Content-Type: application/json" \
-  -d "{\"start\":0,\"goal\":400,\"algorithm\":\"a_star\"}"
-```
-
-============================================================
-12. AVAILABLE ROUTING ALGORITHMS
-================================
-
-The API supports:
+Available algorithms:
 
 ```
 dijkstra
@@ -610,736 +212,645 @@ bfs
 ch
 ```
 
----
+The response provides:
 
-## 12.1 DIJKSTRA
+* Display name
+* Description
+* Whether the algorithm requires a Contraction Hierarchy
 
-Request:
-
-```
-{
-    "start": 0,
-    "goal": 400,
-    "algorithm": "dijkstra"
-}
-```
+7. LIST LOADED GRAPHS
 
 ---
-
-## 12.2 A*
-
-Request:
-
-```
-{
-    "start": 0,
-    "goal": 400,
-    "algorithm": "a_star"
-}
-```
-
-The heuristic is automatically selected according to
-graph type.
-
-Geographical / road:
-
-```
-Euclidean heuristic.
-```
-
-Grid:
-
-```
-Manhattan-distance heuristic.
-```
-
-Generic / random:
-
-```
-Zero heuristic.
-```
-
----
-
-## 12.3 BIDIRECTIONAL DIJKSTRA
-
-Request:
-
-```
-{
-    "start": 0,
-    "goal": 400,
-    "algorithm": "bidijkstra"
-}
-```
-
----
-
-## 12.4 BIDIRECTIONAL A*
-
-Request:
-
-```
-{
-    "start": 0,
-    "goal": 400,
-    "algorithm": "bi_a_star"
-}
-```
-
----
-
-## 12.5 BFS
-
-Request:
-
-```
-{
-    "start": 0,
-    "goal": 400,
-    "algorithm": "bfs"
-}
-```
-
-BFS is intended primarily for unweighted graphs.
-
----
-
-## 12.6 CONTRACTION HIERARCHY
-
-Request:
-
-```
-{
-    "start": 0,
-    "goal": 400,
-    "algorithm": "ch"
-}
-```
-
-The graph must have:
-
-```
-ch_ready = true
-```
-
-Otherwise the API returns an error.
-
-============================================================
-13. ROUTING RESPONSE
-====================
-
-A successful routing request returns:
-
-```
-{
-    "success": true,
-    "graph_id": "8c2f5d7e4a...",
-    "query": {
-        "start": 0,
-        "goal": 400,
-        "algorithm": "a_star"
-    },
-    "result": {
-        "found": true,
-        "cost": 532.41,
-        "time_seconds": 0.00123,
-        "path": [
-            0,
-            12,
-            45,
-            87,
-            400
-        ],
-        "path_nodes": 5,
-        "path_edges": 4,
-        "path_length": 532.41
-    },
-    "trace": null
-}
-```
-
-Important result fields:
-
-```
-found
-    Whether a route was found.
-
-cost
-    Cost returned by the routing algorithm.
-
-time_seconds
-    Algorithm execution time.
-
-path
-    Ordered list of node IDs.
-
-path_nodes
-    Number of nodes in the route.
-
-path_edges
-    Number of edges in the route.
-
-path_length
-    Independently calculated path length when possible.
-```
-
-============================================================
-14. SEARCH TRACE
-================
-
-Request:
-
-```
-{
-    "start": 0,
-    "goal": 400,
-    "algorithm": "a_star",
-    "trace": true
-}
-```
-
-Example:
-
-```
-curl -X POST http://127.0.0.1:5000/graphs/8c2f5d7e4a.../route \
-  -H "Content-Type: application/json" \
-  -d "{\"start\":0,\"goal\":400,\"algorithm\":\"a_star\",\"trace\":true}"
-```
-
-If the corresponding visual algorithm exists in Graph,
-the response can contain:
-
-```
-"trace": {
-    "expansion_count": ...,
-    "edge_check_count": ...,
-    "meeting_node": ...
-}
-```
-
-The exact trace contents depend on the implementation of
-the Graph visualization methods.
-
-============================================================
-15. BUILD CH FOR AN EXISTING GRAPH
-==================================
 
 Endpoint:
-
-```
-POST /graphs/<graph_id>/ch
-```
-
-Example:
-
-```
-curl -X POST http://127.0.0.1:5000/graphs/8c2f5d7e4a.../ch
-```
-
-Response:
-
-```
-{
-    "success": true,
-    "graph_id": "8c2f5d7e4a...",
-    "ch": {
-        "time_seconds": 0.52,
-        "statistics": {...},
-        "ch_ready": true
-    }
-}
-```
-
-After this operation:
-
-```
-ch_ready = true
-```
-
-The graph can be queried using:
-
-```
-"algorithm": "ch"
-```
-
-============================================================
-16. SAVE A GRAPH
-================
-
-Endpoint:
-
-```
-POST /graphs/<graph_id>/save
-```
-
-Request:
-
-```
-{
-    "filename": "output.graph"
-}
-```
-
-Example:
-
-```
-curl -X POST http://127.0.0.1:5000/graphs/8c2f5d7e4a.../save \
-  -H "Content-Type: application/json" \
-  -d "{\"filename\":\"output.graph\"}"
-```
-
-This calls:
-
-```
-graph.save(filename)
-```
-
-on the corresponding Graph object.
-
-============================================================
-17. DELETE A GRAPH
-==================
-
-Endpoint:
-
-```
-DELETE /graphs/<graph_id>
-```
-
-Example:
-
-```
-curl -X DELETE http://127.0.0.1:5000/graphs/8c2f5d7e4a...
-```
-
-Response:
-
-```
-{
-    "success": true,
-    "deleted": "8c2f5d7e4a..."
-}
-```
-
-The graph is removed from the API's memory.
-
-============================================================
-18. COMPLETE WORKFLOW
-=====================
-
-## STEP 1
-
-Start the server:
-
-```
-python GraphApi.py
-```
-
-## STEP 2
-
-Generate a geographical graph:
-
-```
-POST /graphs/generate
-```
-
-Request:
-
-```
-{
-    "type": "geographical",
-    "nodes": 500,
-    "size": 1000,
-    "min_dist": 10,
-    "radius": 150,
-    "max_degree": 4,
-    "directed": false
-}
-```
-
-## STEP 3
-
-Receive the graph ID:
-
-```
-"id": "8c2f5d7e4a..."
-```
-
-## STEP 4
-
-Run A*:
-
-```
-POST /graphs/8c2f5d7e4a.../route
-```
-
-Request:
-
-```
-{
-    "start": 0,
-    "goal": 400,
-    "algorithm": "a_star"
-}
-```
-
-## STEP 5
-
-Build CH:
-
-```
-POST /graphs/8c2f5d7e4a.../ch
-```
-
-## STEP 6
-
-Run CH:
-
-```
-POST /graphs/8c2f5d7e4a.../route
-```
-
-Request:
-
-```
-{
-    "start": 0,
-    "goal": 400,
-    "algorithm": "ch"
-}
-```
-
-## STEP 7
-
-Save the graph:
-
-```
-POST /graphs/8c2f5d7e4a.../save
-```
-
-Request:
-
-```
-{
-    "filename": "geographical_ch.graph"
-}
-```
-
-============================================================
-19. PYTHON CLIENT EXAMPLE
-=========================
-
-The API can also be used from Python.
-
-Install requests:
-
-```
-pip install requests
-```
-
-Generate a graph:
-
-```
-import requests
-
-response = requests.post(
-    "http://127.0.0.1:5000/graphs/generate",
-    json={
-        "type": "geographical",
-        "nodes": 500,
-        "size": 1000,
-        "min_dist": 10,
-        "radius": 150,
-        "max_degree": 4
-    }
-)
-
-data = response.json()
-
-graph_id = data["id"]
-
-print(graph_id)
-```
-
-Run A*:
-
-```
-response = requests.post(
-    f"http://127.0.0.1:5000/graphs/{graph_id}/route",
-    json={
-        "start": 0,
-        "goal": 400,
-        "algorithm": "a_star"
-    }
-)
-
-print(response.json())
-```
-
-============================================================
-20. JAVASCRIPT / FRONTEND EXAMPLE
-=================================
-
-Generate a graph:
-
-```
-fetch(
-    "http://127.0.0.1:5000/graphs/generate",
-    {
-        method: "POST",
-
-        headers: {
-            "Content-Type": "application/json"
-        },
-
-        body: JSON.stringify({
-            type: "geographical",
-            nodes: 500,
-            size: 1000,
-            min_dist: 10,
-            radius: 150,
-            max_degree: 4
-        })
-    }
-)
-.then(response => response.json())
-.then(data => {
-    console.log(data);
-});
-```
-
-Run A*:
-
-```
-fetch(
-    "http://127.0.0.1:5000/graphs/GRAPH_ID/route",
-    {
-        method: "POST",
-
-        headers: {
-            "Content-Type": "application/json"
-        },
-
-        body: JSON.stringify({
-            start: 0,
-            goal: 400,
-            algorithm: "a_star"
-        })
-    }
-)
-.then(response => response.json())
-.then(data => {
-    console.log(data);
-});
-```
-
-============================================================
-21. ERROR RESPONSES
-===================
-
-Errors are returned as JSON.
-
-Example:
-
-```
-{
-    "success": false,
-    "error": "Graph not found."
-}
-```
-
-Common errors:
-
-```
-Graph not found.
-    The supplied graph ID does not exist.
-
-Missing 'start'.
-    Start node was not provided.
-
-Missing 'goal'.
-    Goal node was not provided.
-
-Unknown algorithm.
-    The requested algorithm is not supported.
-
-Start node X does not exist.
-    The requested start node is not in the graph.
-
-Goal node X does not exist.
-    The requested goal node is not in the graph.
-
-CH is not ready.
-    CH was requested without building the hierarchy.
-```
-
-============================================================
-22. IMPORTANT STORAGE BEHAVIOR
-==============================
-
-Graphs are stored in memory:
-
-```
-GRAPHS = {}
-```
-
-Therefore:
-
-```
-API starts
-    |
-    +-- Graph generated
-    |
-    +-- Graph stored in RAM
-    |
-    +-- Queries use the same Graph object
-    |
-    +-- API stops
-          |
-          +-- Graphs are lost
-```
-
-Restarting GraphApi.py removes all graphs from memory.
-
-Graphs must therefore be saved to disk if they need to
-survive a server restart.
-
-============================================================
-23. RECOMMENDED GRAPH WORKFLOW
-==============================
-
-For development and visualization:
-
-```
-Generate graph
-      |
-      v
-Receive graph ID
-      |
-      v
-Get graph information
-      |
-      v
-Visualize graph
-      |
-      v
-Send routing query
-      |
-      v
-Receive path
-      |
-      v
-Highlight path
-      |
-      v
-Compare algorithms
-```
-
-The graph ID should be maintained by the frontend.
-
-============================================================
-24. CURRENT API LIMITATION
-==========================
-
-The current API provides graph statistics and routing paths,
-but it does not yet provide a dedicated endpoint returning
-the complete graph topology.
-
-For a graphical visualization interface, an additional
-endpoint should eventually provide:
-
-```
-- Node IDs
-- Node coordinates
-- Node metadata
-- Edge source
-- Edge target
-- Edge weight
-- Directed/undirected information
-```
-
-For example:
-
-```
-GET /graphs/<graph_id>/data
-```
-
-This would allow a frontend to render the graph without
-direct access to the Python Graph object.
-
-============================================================
-25. SUMMARY
-===========
-
-Start:
-
-```
-python GraphApi.py
-```
-
-Health:
-
-```
-GET /
-```
-
-List graphs:
 
 ```
 GET /graphs
 ```
 
-Generate:
+Purpose:
+
+Returns all graphs currently stored in server memory.
+
+Example:
+
+```
+GET http://localhost:5000/graphs
+```
+
+Example response:
+
+{
+"count": 1,
+"graphs": [
+{
+"id": "a8f5...",
+"nodes": 100,
+"edges": 245,
+"directed": false,
+"graph_type": "random",
+"average_degree": 4.9,
+"max_degree": 11,
+"ch_ready": false
+}
+]
+}
+
+IMPORTANT:
+
+Graphs are stored in the global GRAPHS dictionary.
+
+They are kept only while the Flask process is running.
+
+Restarting the server removes all currently loaded graphs from memory.
+
+8. GENERATE GRAPH
+
+---
+
+Endpoint:
 
 ```
 POST /graphs/generate
 ```
 
-Load:
+Content-Type:
+
+```
+application/json
+```
+
+Purpose:
+
+Creates a new graph and stores it in server memory.
+
+The response returns a generated graph ID.
+
+Basic request:
+
+{
+"type": "generic"
+}
+
+The returned ID must be used for later operations such as:
+
+* Routing
+* Saving
+* Getting information
+* Getting structure
+* Building CH
+* Deleting
+
+9. COMMON GENERATION PARAMETERS
+
+---
+
+All graph types support:
+
+```
+type
+```
+
+Optional:
+
+```
+directed
+```
+
+Example:
+
+{
+"type": "grid",
+"directed": false
+}
+
+The directed parameter accepts:
+
+```
+true
+false
+```
+
+It can also accept values such as:
+
+```
+1
+0
+yes
+no
+on
+off
+```
+
+## 10. GENERIC GRAPH
+
+Purpose:
+
+Creates a graph containing nodes without automatically generated edges.
+
+Request:
+
+{
+"type": "generic",
+"nodes": 100,
+"directed": false
+}
+
+Parameters:
+
+```
+nodes
+    Number of nodes.
+
+    Minimum: 1
+    Maximum: 100000
+    Default: 100
+
+directed
+    Whether the graph is directed.
+```
+
+Default example:
+
+{
+"type": "generic"
+}
+
+This creates:
+
+```
+100 nodes
+0 automatically generated edges
+undirected graph
+```
+
+IMPORTANT:
+
+A generic graph is mainly useful when edges are added through the Graph class or when testing graph structures.
+
+11. RANDOM GRAPH
+
+---
+
+Purpose:
+
+Generates a random graph using an edge probability.
+
+Request:
+
+{
+"type": "random",
+"nodes": 100,
+"probability": 0.05,
+"min_weight": 1,
+"max_weight": 100,
+"directed": false
+}
+
+Parameters:
+
+```
+nodes
+    Number of nodes.
+
+    Minimum: 1
+    Maximum: 100000
+    Default: 100
+
+probability
+    Probability of creating an edge.
+
+    Minimum: 0.0
+    Maximum: 1.0
+    Default: 0.05
+
+min_weight
+    Minimum random edge weight.
+
+    Minimum: 0
+    Default: 1.0
+
+max_weight
+    Maximum random edge weight.
+
+    Minimum: 0
+    Default: 100.0
+
+directed
+    Directed or undirected graph.
+```
+
+Example:
+
+{
+"type": "random",
+"nodes": 500,
+"probability": 0.02,
+"min_weight": 1,
+"max_weight": 50,
+"directed": false
+}
+
+12. GEOGRAPHICAL GRAPH
+
+---
+
+Purpose:
+
+Creates a connected geographical graph using an MST and additional local edges.
+
+Nodes contain geographical coordinates.
+
+Request:
+
+{
+"type": "geographical",
+"nodes": 500,
+"size": 1000,
+"min_dist": 10,
+"radius": 150,
+"max_degree": 4,
+"directed": false
+}
+
+Parameters:
+
+```
+nodes
+    Number of nodes.
+
+    Minimum: 2
+    Maximum: 10000
+    Default: 100
+
+size
+    Size of the generated area.
+
+    Minimum: 1
+    Default: 1000
+
+min_dist
+    Minimum distance between generated nodes.
+
+    Minimum: 0
+    Default: 10
+
+radius
+    Maximum local connection radius.
+
+    Minimum: 0
+    Default: 150
+
+max_degree
+    Maximum node degree.
+
+    Minimum: 1
+    Maximum: 100
+    Default: 4
+
+directed
+    Directed or undirected graph.
+```
+
+Example:
+
+{
+"type": "geographical",
+"nodes": 1000,
+"size": 5000,
+"min_dist": 20,
+"radius": 300,
+"max_degree": 6,
+"directed": false
+}
+
+13. GRID GRAPH
+
+---
+
+Purpose:
+
+Creates a rectangular grid.
+
+Request:
+
+{
+"type": "grid",
+"rows": 20,
+"cols": 20,
+"weight": 1,
+"diagonal": false,
+"directed": false
+}
+
+Parameters:
+
+```
+rows
+    Number of rows.
+
+    Minimum: 1
+    Maximum: 1000
+    Default: 10
+
+cols
+    Number of columns.
+
+    Minimum: 1
+    Maximum: 1000
+    Default: 10
+
+weight
+    Edge weight.
+
+    Minimum: 0
+    Default: 1.0
+
+diagonal
+    Allows diagonal edges.
+
+    Default: false
+
+directed
+    Directed or undirected graph.
+```
+
+Example with diagonal movement:
+
+{
+"type": "grid",
+"rows": 50,
+"cols": 50,
+"weight": 1,
+"diagonal": true,
+"directed": false
+}
+
+14. GENERATE GRAPH RESPONSE
+
+---
+
+Successful graph generation returns HTTP 201.
+
+Example:
+
+{
+"success": true,
+"id": "8f4b...",
+"graph": {
+"nodes": 100,
+"edges": 250,
+"directed": false,
+"graph_type": "random",
+"average_degree": 5.0,
+"max_degree": 12,
+"ch_ready": false
+},
+"ch": null
+}
+
+The important value is:
+
+```
+id
+```
+
+Example:
+
+```
+8f4b7f...
+```
+
+## 15. GENERATE GRAPH AND BUILD CH
+
+A Contraction Hierarchy can optionally be created during graph generation.
+
+Request:
+
+{
+"type": "random",
+"nodes": 1000,
+"probability": 0.02,
+"min_weight": 1,
+"max_weight": 100,
+"directed": false,
+"build_ch": true
+}
+
+The response contains CH information:
+
+{
+"success": true,
+"id": "...",
+"graph": {...},
+"ch": {
+"time_seconds": 0.123,
+"statistics": {...},
+"ch_ready": true
+}
+}
+
+16. LOAD GRAPH FROM FILE
+
+---
+
+Endpoint:
 
 ```
 POST /graphs/load
 ```
 
-Graph information:
+Content-Type:
+
+```
+application/json
+```
+
+Purpose:
+
+Loads a graph using the Graph.load() method.
+
+Request:
+
+{
+"filename": "graphs/my_graph.graph"
+}
+
+The file path must be accessible by the machine running the Flask server.
+
+Optional CH construction:
+
+{
+"filename": "graphs/my_graph.graph",
+"build_ch": true
+}
+
+Example response:
+
+{
+"success": true,
+"id": "abc123...",
+"graph": {
+"nodes": 1000,
+"edges": 2500,
+"directed": false,
+"graph_type": "geographical",
+"average_degree": 5.0,
+"max_degree": 8,
+"ch_ready": false
+},
+"ch": null
+}
+
+17. GET GRAPH INFORMATION
+
+---
+
+Endpoint:
 
 ```
 GET /graphs/<graph_id>
 ```
 
-Route:
+Example:
+
+```
+GET /graphs/abc123
+```
+
+Purpose:
+
+Returns statistics for one loaded graph.
+
+Example response:
+
+{
+"success": true,
+"id": "abc123",
+"graph": {
+"nodes": 1000,
+"edges": 2500,
+"directed": false,
+"graph_type": "geographical",
+"average_degree": 5.0,
+"max_degree": 8,
+"ch_ready": false
+}
+}
+
+18. GET GRAPH STRUCTURE
+
+---
+
+Endpoint:
+
+```
+GET /graphs/<graph_id>/structure
+```
+
+Purpose:
+
+Returns all nodes and edges of a graph.
+
+This endpoint is mainly intended for visualization clients such as PyQt.
+
+Example:
+
+```
+GET /graphs/abc123/structure
+```
+
+Response:
+
+{
+"success": true,
+"id": "abc123",
+"graph": {
+"nodes": [
+{
+"id": 0,
+"data": {
+"x": 120,
+"y": 350
+}
+},
+{
+"id": 1,
+"data": {
+"x": 200,
+"y": 300
+}
+}
+],
+"edges": [
+{
+"source": 0,
+"target": 1,
+"weight": 10.5
+}
+]
+}
+}
+
+For undirected graphs, duplicate reverse edges are removed from the response.
+
+For example, internally:
+
+```
+0 -> 1
+1 -> 0
+```
+
+is returned as one visual edge:
+
+```
+0 -> 1
+```
+
+## 19. ROUTE QUERY
+
+Endpoint:
 
 ```
 POST /graphs/<graph_id>/route
 ```
 
-Build CH:
+Content-Type:
 
 ```
-POST /graphs/<graph_id>/ch
+application/json
 ```
 
-Save:
+Purpose:
+
+Runs a routing algorithm between two nodes.
+
+Required parameters:
 
 ```
-POST /graphs/<graph_id>/save
+start
+goal
 ```
 
-Delete:
+Optional parameters:
 
 ```
-DELETE /graphs/<graph_id>
+algorithm
+heuristic
+trace
 ```
 
-Supported graph types:
+Example:
 
-```
-generic
-random
-grid
-geographical
-```
+{
+"start": 0,
+"goal": 99,
+"algorithm": "dijkstra"
+}
+
+20. ROUTING ALGORITHMS
+
+---
 
 Supported algorithms:
 
@@ -1351,3 +862,1236 @@ bi_a_star
 bfs
 ch
 ```
+
+## 21. DIJKSTRA
+
+Request:
+
+{
+"start": 0,
+"goal": 99,
+"algorithm": "dijkstra"
+}
+
+Dijkstra does not require a heuristic.
+
+22. A*
+
+---
+
+Request:
+
+{
+"start": 0,
+"goal": 99,
+"algorithm": "a_star",
+"heuristic": "euclidean"
+}
+
+A* supports the following heuristics:
+
+```
+zero
+euclidean
+geographical
+haversine
+manhattan
+grid
+chebyshev
+octile
+```
+
+If no heuristic is specified, the API uses:
+
+```
+zero
+```
+
+IMPORTANT:
+
+A zero heuristic makes A* behave similarly to Dijkstra in terms of its heuristic contribution.
+
+23. BIDIRECTIONAL DIJKSTRA
+
+---
+
+Request:
+
+{
+"start": 0,
+"goal": 99,
+"algorithm": "bidijkstra"
+}
+
+No heuristic is required.
+
+24. BIDIRECTIONAL A*
+
+---
+
+Request:
+
+{
+"start": 0,
+"goal": 99,
+"algorithm": "bi_a_star",
+"heuristic": "euclidean"
+}
+
+Supported heuristics are the same as A*.
+
+25. BFS
+
+---
+
+Request:
+
+{
+"start": 0,
+"goal": 99,
+"algorithm": "bfs"
+}
+
+BFS does not use edge weights when determining the route.
+
+It is therefore appropriate mainly for unweighted graphs or when minimizing the number of edges is the objective.
+
+26. CONTRACTION HIERARCHY
+
+---
+
+Request:
+
+{
+"start": 0,
+"goal": 99,
+"algorithm": "ch"
+}
+
+CH requires:
+
+```
+ch_ready = true
+```
+
+If CH has not been built, the request fails.
+
+Build CH before routing:
+
+```
+POST /graphs/<graph_id>/ch
+```
+
+## 27. A* HEURISTICS
+
+ZERO
+
+Name:
+
+```
+zero
+```
+
+Returns:
+
+```
+0
+```
+
+Useful as a baseline.
+
+EUCLIDEAN
+
+Name:
+
+```
+euclidean
+```
+
+Uses:
+
+```
+sqrt((x1-x2)^2 + (y1-y2)^2)
+```
+
+Best suited to graphs where x/y represent Cartesian coordinates.
+
+GEOGRAPHICAL
+
+Name:
+
+```
+geographical
+```
+
+Uses the same Euclidean distance calculation as the "euclidean"
+heuristic.
+
+It uses:
+
+```
+x
+y
+```
+
+coordinates stored in node data.
+
+HAVERSINE
+
+Name:
+
+```
+haversine
+```
+
+Calculates geographical distance on Earth.
+
+The implementation assumes:
+
+```
+x = longitude
+y = latitude
+```
+
+The returned distance is in meters.
+
+This heuristic is intended for geographical coordinates such as:
+
+```
+longitude / latitude
+```
+
+MANHATTAN
+
+Name:
+
+```
+manhattan
+```
+
+Uses:
+
+```
+|row1-row2| + |col1-col2|
+```
+
+It expects node data containing:
+
+```
+row
+col
+```
+
+It is intended for grid graphs.
+
+GRID
+
+Name:
+
+```
+grid
+```
+
+Equivalent to the current Manhattan/grid heuristic.
+
+It expects:
+
+```
+row
+col
+```
+
+CHEBYSHEV
+
+Name:
+
+```
+chebyshev
+```
+
+Uses:
+
+```
+max(|x1-x2|, |y1-y2|)
+```
+
+It expects:
+
+```
+x
+y
+```
+
+OCTILE
+
+Name:
+
+```
+octile
+```
+
+Uses:
+
+```
+max(dx,dy) + (sqrt(2)-1)*min(dx,dy)
+```
+
+It expects:
+
+```
+x
+y
+```
+
+It is useful for grid-like movement where diagonal movement is allowed.
+
+28. TRACE
+
+---
+
+The route endpoint supports optional search tracing.
+
+Request:
+
+{
+"start": 0,
+"goal": 99,
+"algorithm": "a_star",
+"heuristic": "euclidean",
+"trace": true
+}
+
+If the corresponding visual algorithm exists in Graph, the API attempts to return the search trace.
+
+The response contains:
+
+```
+"trace": [...]
+```
+
+If tracing is disabled:
+
+{
+"trace": null
+}
+
+Tracing is mainly intended for visualization and algorithm demonstrations.
+
+It can increase memory usage and execution time.
+
+29. ROUTE RESPONSE
+
+---
+
+Example:
+
+{
+"success": true,
+"graph_id": "abc123",
+"query": {
+"start": 0,
+"goal": 99,
+"algorithm": "a_star",
+"heuristic": "euclidean"
+},
+"result": {
+"found": true,
+"cost": 245.7,
+"time_seconds": 0.00231,
+"path": [
+0,
+4,
+8,
+15,
+31,
+99
+],
+"path_nodes": 6,
+"path_edges": 5,
+"path_length": 245.7
+},
+"trace": null
+}
+
+30. ROUTE RESULT FIELDS
+
+---
+
+found
+
+Indicates whether a path was found.
+
+```
+true
+false
+```
+
+cost
+
+The cost returned by the Graph routing algorithm.
+
+If no path exists:
+
+```
+null
+```
+
+time_seconds
+
+Execution time measured by:
+
+```
+time.perf_counter()
+```
+
+This measures the routing operation performed by the API.
+
+path
+
+List of node IDs forming the resulting route.
+
+Example:
+
+[
+0,
+5,
+12,
+20
+]
+
+path_nodes
+
+Number of nodes in the returned path.
+
+path_edges
+
+Number of edges in the returned path.
+
+Usually:
+
+```
+path_edges = path_nodes - 1
+```
+
+path_length
+
+Sum of edge weights found in the original graph.
+
+For CH shortcut edges, path length may become:
+
+```
+null
+```
+
+because the shortcut may not directly exist in the normal adjacency structure.
+
+31. BUILD CONTRACTION HIERARCHY
+
+---
+
+Endpoint:
+
+```
+POST /graphs/<graph_id>/ch
+```
+
+Purpose:
+
+Builds a Contraction Hierarchy for an already loaded graph.
+
+Example:
+
+```
+POST /graphs/abc123/ch
+```
+
+No request body is required.
+
+Example response:
+
+{
+"success": true,
+"graph_id": "abc123",
+"ch": {
+"time_seconds": 1.234,
+"statistics": {...},
+"ch_ready": true
+}
+}
+
+After this operation:
+
+```
+ch_ready = true
+```
+
+The graph can then be queried using:
+
+```
+"algorithm": "ch"
+```
+
+## 32. SAVE GRAPH
+
+Endpoint:
+
+```
+POST /graphs/<graph_id>/save
+```
+
+Content-Type:
+
+```
+application/json
+```
+
+Request:
+
+{
+"filename": "graphs/my_graph.graph"
+}
+
+Example:
+
+```
+POST /graphs/abc123/save
+```
+
+Body:
+
+{
+"filename": "graphs/test.graph"
+}
+
+The Graph.save() method is responsible for serialization.
+
+Example response:
+
+{
+"success": true,
+"graph_id": "abc123",
+"filename": "graphs/test.graph",
+"graph": {
+"nodes": 100,
+"edges": 250,
+"directed": false,
+"graph_type": "random",
+"average_degree": 2.0,
+"max_degree": 5,
+"ch_ready": false
+}
+}
+
+33. DELETE GRAPH
+
+---
+
+Endpoint:
+
+```
+DELETE /graphs/<graph_id>
+```
+
+Example:
+
+```
+DELETE /graphs/abc123
+```
+
+Purpose:
+
+Removes a graph from server memory.
+
+Response:
+
+{
+"success": true,
+"deleted": "abc123"
+}
+
+The graph cannot be used again unless it is loaded or generated again.
+
+34. COMPLETE EXAMPLE WORKFLOW
+
+---
+
+A typical client application can follow this sequence.
+
+STEP 1 — Check server
+
+```
+GET /
+```
+
+STEP 2 — Get graph types
+
+```
+GET /graph-types
+```
+
+STEP 3 — Get available algorithms
+
+```
+GET /algorithms
+```
+
+STEP 4 — Generate a graph
+
+```
+POST /graphs/generate
+```
+
+Example body:
+
+{
+"type": "grid",
+"rows": 50,
+"cols": 50,
+"weight": 1,
+"diagonal": false,
+"directed": false
+}
+
+STEP 5 — Store returned graph ID.
+
+Example:
+
+```
+abc123
+```
+
+STEP 6 — Get graph information
+
+```
+GET /graphs/abc123
+```
+
+STEP 7 — Get graph structure
+
+```
+GET /graphs/abc123/structure
+```
+
+STEP 8 — Run routing
+
+```
+POST /graphs/abc123/route
+```
+
+Body:
+
+{
+"start": 0,
+"goal": 2499,
+"algorithm": "a_star",
+"heuristic": "manhattan"
+}
+
+STEP 9 — Optionally request trace
+
+{
+"start": 0,
+"goal": 2499,
+"algorithm": "a_star",
+"heuristic": "manhattan",
+"trace": true
+}
+
+STEP 10 — Save graph
+
+```
+POST /graphs/abc123/save
+```
+
+Body:
+
+{
+"filename": "graphs/grid50.graph"
+}
+
+STEP 11 — Delete graph when finished
+
+```
+DELETE /graphs/abc123
+```
+
+## 35. CURL EXAMPLES
+
+Check API:
+
+```
+curl http://localhost:5000/
+```
+
+Get algorithms:
+
+```
+curl http://localhost:5000/algorithms
+```
+
+Get graph types:
+
+```
+curl http://localhost:5000/graph-types
+```
+
+List graphs:
+
+```
+curl http://localhost:5000/graphs
+```
+
+Generate random graph:
+
+```
+curl -X POST http://localhost:5000/graphs/generate ^
+  -H "Content-Type: application/json" ^
+  -d "{\"type\":\"random\",\"nodes\":100,\"probability\":0.05}"
+```
+
+Generate grid:
+
+```
+curl -X POST http://localhost:5000/graphs/generate ^
+  -H "Content-Type: application/json" ^
+  -d "{\"type\":\"grid\",\"rows\":20,\"cols\":20,\"weight\":1,\"diagonal\":false}"
+```
+
+Run Dijkstra:
+
+```
+curl -X POST http://localhost:5000/graphs/<GRAPH_ID>/route ^
+  -H "Content-Type: application/json" ^
+  -d "{\"start\":0,\"goal\":99,\"algorithm\":\"dijkstra\"}"
+```
+
+Run A*:
+
+```
+curl -X POST http://localhost:5000/graphs/<GRAPH_ID>/route ^
+  -H "Content-Type: application/json" ^
+  -d "{\"start\":0,\"goal\":99,\"algorithm\":\"a_star\",\"heuristic\":\"euclidean\"}"
+```
+
+Build CH:
+
+```
+curl -X POST http://localhost:5000/graphs/<GRAPH_ID>/ch
+```
+
+Run CH:
+
+```
+curl -X POST http://localhost:5000/graphs/<GRAPH_ID>/route ^
+  -H "Content-Type: application/json" ^
+  -d "{\"start\":0,\"goal\":99,\"algorithm\":\"ch\"}"
+```
+
+Get graph structure:
+
+```
+curl http://localhost:5000/graphs/<GRAPH_ID>/structure
+```
+
+Delete graph:
+
+```
+curl -X DELETE http://localhost:5000/graphs/<GRAPH_ID>
+```
+
+## 36. PYTHON REQUEST EXAMPLES
+
+Using the requests library:
+
+```
+import requests
+
+BASE_URL = "http://localhost:5000"
+```
+
+Generate a graph:
+
+```
+response = requests.post(
+    f"{BASE_URL}/graphs/generate",
+    json={
+        "type": "grid",
+        "rows": 20,
+        "cols": 20,
+        "weight": 1,
+        "diagonal": False,
+        "directed": False
+    }
+)
+
+data = response.json()
+
+graph_id = data["id"]
+```
+
+Run A*:
+
+```
+response = requests.post(
+    f"{BASE_URL}/graphs/{graph_id}/route",
+    json={
+        "start": 0,
+        "goal": 399,
+        "algorithm": "a_star",
+        "heuristic": "manhattan"
+    }
+)
+
+result = response.json()
+
+print(result)
+```
+
+Get structure:
+
+```
+response = requests.get(
+    f"{BASE_URL}/graphs/{graph_id}/structure"
+)
+
+structure = response.json()
+```
+
+## 37. ERROR HANDLING
+
+GRAPH NOT FOUND
+
+HTTP:
+
+```
+404
+```
+
+Response:
+
+{
+"success": false,
+"error": "Graph not found."
+}
+
+Possible cause:
+
+The graph ID is invalid or the graph was deleted.
+
+MISSING GRAPH TYPE
+
+HTTP:
+
+```
+400
+```
+
+Response:
+
+{
+"success": false,
+"error": "Missing 'type'."
+}
+
+INVALID GRAPH TYPE
+
+Example:
+
+{
+"type": "unknown"
+}
+
+Response contains an error indicating the supported graph types.
+
+INVALID ALGORITHM
+
+Example:
+
+{
+"algorithm": "astar"
+}
+
+The valid name is:
+
+```
+a_star
+```
+
+MISSING START
+
+Response:
+
+{
+"success": false,
+"error": "Missing 'start'."
+}
+
+MISSING GOAL
+
+Response:
+
+{
+"success": false,
+"error": "Missing 'goal'."
+}
+
+INVALID FILE
+
+If a requested file does not exist:
+
+HTTP:
+
+```
+404
+```
+
+Example:
+
+{
+"success": false,
+"error": "File not found: ..."
+}
+
+CH NOT READY
+
+If:
+
+```
+"algorithm": "ch"
+```
+
+is requested before CH is built, the routing operation raises an error indicating that CH must be built first.
+
+38. GRAPH TYPES AND RECOMMENDED HEURISTICS
+
+---
+
+GENERIC
+
+Typical heuristic:
+
+```
+zero
+```
+
+Generic graphs do not automatically provide coordinates.
+
+RANDOM
+
+Typical heuristic:
+
+```
+zero
+```
+
+Random graphs do not necessarily have meaningful spatial coordinates.
+
+GEOGRAPHICAL
+
+Possible heuristics:
+
+```
+euclidean
+geographical
+haversine
+```
+
+For generated geographical graphs, the Euclidean/geographical heuristic uses x/y coordinates.
+
+GRID
+
+Possible heuristics:
+
+```
+manhattan
+chebyshev
+octile
+```
+
+For diagonal grid movement, octile or Chebyshev may be tested depending on the movement model.
+
+39. IMPORTANT IMPLEMENTATION NOTES
+
+---
+
+1. GRAPH STORAGE
+
+Graphs are stored in memory:
+
+```
+GRAPHS = {}
+```
+
+They are identified using randomly generated UUID values.
+
+The API does not provide persistent server-side graph storage by itself.
+
+2. FILE PATHS
+
+When loading or saving a graph, the filename is interpreted by the Flask server.
+
+The client does not upload the file contents through this API.
+
+The file must therefore be accessible from the server machine.
+
+3. TRACE SUPPORT
+
+Trace output depends on the corresponding visual method existing in Graph.
+
+For example:
+
+```
+dijkstra_visual
+a_star_visual
+bidirectional_dijkstra_visual
+bidirectional_a_star_visual
+```
+
+BFS and CH do not use the visual methods in the current API implementation.
+
+4. A* HEURISTICS
+
+The API selects a heuristic only for:
+
+```
+a_star
+bi_a_star
+```
+
+Other algorithms ignore the heuristic parameter.
+
+5. AUTOMATIC HEURISTIC
+
+If no heuristic is supplied, get_heuristic() selects one based on graph_type.
+
+Current automatic behavior:
+
+```
+geographical -> geographical heuristic
+road         -> geographical heuristic
+grid         -> grid/Manhattan heuristic
+other        -> zero heuristic
+```
+
+6. DIRECTED GRAPHS
+
+All generated graph types support:
+
+```
+directed: true
+```
+
+or:
+
+```
+directed: false
+```
+
+7. GRAPH STRUCTURE
+
+The structure endpoint returns:
+
+```
+nodes
+edges
+```
+
+Node data is returned exactly from the Graph node's data dictionary.
+
+Example:
+
+{
+"id": 10,
+"data": {
+"x": 125.4,
+"y": 48.2
+}
+}
+
+40. API QUICK REFERENCE
+
+---
+
+## METHOD   ENDPOINT                         PURPOSE
+
+GET      /                                Health check
+GET      /graph-types                     List graph schemas
+GET      /algorithms                      List algorithms
+GET      /graphs                          List loaded graphs
+POST     /graphs/generate                 Generate graph
+POST     /graphs/load                     Load graph from file
+GET      /graphs/<id>                     Graph information
+GET      /graphs/<id>/structure           Graph nodes/edges
+POST     /graphs/<id>/route               Execute routing
+POST     /graphs/<id>/ch                  Build CH
+POST     /graphs/<id>/save                Save graph
+DELETE   /graphs/<id>                     Delete graph
+
+41. MINIMAL CLIENT WORKFLOW
+
+---
+
+For a simple client, the minimum required sequence is:
+
+```
+1. POST /graphs/generate
+2. Store returned "id"
+3. POST /graphs/<id>/route
+4. Read "result.path"
+5. Optionally GET /graphs/<id>/structure
+6. Optionally DELETE /graphs/<id>
+```
+
+## 42. ROUTING REQUEST TEMPLATE
+
+Generic template:
+
+{
+"start": NODE_ID,
+"goal": NODE_ID,
+"algorithm": "ALGORITHM",
+"heuristic": "HEURISTIC",
+"trace": false
+}
+
+Only include "heuristic" when using:
+
+```
+a_star
+bi_a_star
+```
+
+Valid algorithms:
+
+```
+dijkstra
+a_star
+bidijkstra
+bi_a_star
+bfs
+ch
+```
+
+Valid heuristics:
+
+```
+zero
+euclidean
+geographical
+haversine
+manhattan
+grid
+chebyshev
+octile
+```
+
+## 43. EXAMPLE: ALGORITHM COMPARISON
+
+The same graph can be tested with multiple algorithms.
+
+Example graph:
+
+```
+POST /graphs/generate
+```
+
+Then run:
+
+Dijkstra:
+
+{
+"start": 0,
+"goal": 999,
+"algorithm": "dijkstra"
+}
+
+A*:
+
+{
+"start": 0,
+"goal": 999,
+"algorithm": "a_star",
+"heuristic": "euclidean"
+}
+
+Bidirectional Dijkstra:
+
+{
+"start": 0,
+"goal": 999,
+"algorithm": "bidijkstra"
+}
+
+Bidirectional A*:
+
+{
+"start": 0,
+"goal": 999,
+"algorithm": "bi_a_star",
+"heuristic": "euclidean"
+}
+
+BFS:
+
+{
+"start": 0,
+"goal": 999,
+"algorithm": "bfs"
+}
+
+CH:
+
+{
+"start": 0,
+"goal": 999,
+"algorithm": "ch"
+}
+
+The returned fields can then be used for comparison:
+
+```
+cost
+time_seconds
+path_nodes
+path_edges
+path_length
+```
+
+## 44. INTENDED ARCHITECTURE
+
+The API is designed to separate the routing system into three layers:
+
+```
+Graph class
+    |
+    v
+Flask REST API
+    |
+    v
+Client / GUI / CLI
+```
+
+The Graph class handles:
+
+```
+Graph representation
+Graph generation
+Routing algorithms
+Contraction Hierarchy
+Graph serialization
+```
+
+The Flask API handles:
+
+```
+HTTP communication
+Request validation
+Graph identification
+Algorithm selection
+JSON serialization
+Performance measurement
+```
+
+A GUI or CLI can therefore communicate with the graph system without directly manipulating the Graph object.
+
+# END OF MANUAL
